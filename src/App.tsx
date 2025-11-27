@@ -28,7 +28,8 @@ type PageId =
   | 'admin'
   | 'privacy'
   | 'terms'
-  | 'premium';
+  | 'premium'
+  | 'login';
 
 type NavItem = {
   id: PageId;
@@ -84,7 +85,14 @@ type AssessmentQuestion = {
   dimension: 'Self-Awareness' | 'Self-Management' | 'Social Awareness' | 'Relationship Skills';
 };
 
-const ASSESSMENT_QUESTIONS: AssessmentQuestion[] = [
+const ASSESSMENT_DIMENSIONS: AssessmentQuestion['dimension'][] = [
+  'Self-Awareness',
+  'Self-Management',
+  'Social Awareness',
+  'Relationship Skills',
+];
+
+const INITIAL_ASSESSMENT_QUESTIONS: AssessmentQuestion[] = [
   {
     id: 1,
     text: 'I can name what I am feeling in the moment.',
@@ -140,6 +148,11 @@ type LearningModule = {
   duration: string;
   tag: string;
   completed: boolean;
+};
+
+const ADMIN_CREDENTIALS = {
+  username: 'vguadmin',
+  password: 'vgu@123',
 };
 
 const INITIAL_MODULES: LearningModule[] = [
@@ -315,16 +328,43 @@ function Dashboard() {
   );
 }
 
-function Assessment() {
+function Assessment({
+  isAdmin,
+  goToAdminLogin,
+}: {
+  isAdmin: boolean;
+  goToAdminLogin: () => void;
+}) {
+  const [questions, setQuestions] =
+    useState<AssessmentQuestion[]>(INITIAL_ASSESSMENT_QUESTIONS);
   const [answers, setAnswers] = useState<AssessmentAnswers>({});
+  const [newQuestion, setNewQuestion] = useState('');
+  const [newDimension, setNewDimension] = useState<AssessmentQuestion['dimension']>(
+    ASSESSMENT_DIMENSIONS[0]
+  );
+
+  const addQuestion = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!newQuestion.trim()) return;
+    setQuestions((prev) => [
+      ...prev,
+      {
+        id: prev.length ? Math.max(...prev.map((q) => q.id)) + 1 : 1,
+        text: newQuestion.trim(),
+        dimension: newDimension,
+      },
+    ]);
+    setNewQuestion('');
+    setNewDimension(ASSESSMENT_DIMENSIONS[0]);
+  };
 
   const handleAnswer = (id: number, value: number) => {
     setAnswers((prev) => ({ ...prev, [id]: value }));
   };
 
-  const allAnswered = ASSESSMENT_QUESTIONS.every((q) => answers[q.id]);
+  const allAnswered = questions.every((q) => answers[q.id]);
 
-  const dimensionScores = ASSESSMENT_QUESTIONS.reduce(
+  const dimensionScores = questions.reduce(
     (acc, q) => {
       const val = answers[q.id];
       if (!val) return acc;
@@ -352,8 +392,70 @@ function Assessment() {
         </p>
       </div>
 
+      {isAdmin ? (
+        <form
+          onSubmit={addQuestion}
+          className="space-y-3 rounded-2xl border border-indigo-500/20 bg-white/90 p-4 shadow-sm ring-1 ring-gray-100"
+        >
+          <p className="text-sm font-semibold text-gray-800">Add a custom question</p>
+          <p className="text-xs text-gray-500">
+            Personalize this reflection by adding new prompts for any EI dimension.
+          </p>
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-gray-600" htmlFor="new-question-text">
+              Question
+            </label>
+            <input
+              id="new-question-text"
+              value={newQuestion}
+              onChange={(e) => setNewQuestion(e.target.value)}
+              placeholder="Describe the moment you want to reflect on..."
+              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/20"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-gray-600" htmlFor="new-question-dimension">
+              Dimension
+            </label>
+            <select
+              id="new-question-dimension"
+              value={newDimension}
+              onChange={(e) =>
+                setNewDimension(e.target.value as AssessmentQuestion['dimension'])
+              }
+              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/20"
+            >
+              {ASSESSMENT_DIMENSIONS.map((dim) => (
+                <option key={dim} value={dim}>
+                  {dim}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="submit"
+            className="w-full rounded-xl bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-300"
+            disabled={!newQuestion.trim()}
+          >
+            Add question
+          </button>
+        </form>
+      ) : (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-900">
+          Only admins can add new assessment questions.{' '}
+          <button
+            type="button"
+            onClick={goToAdminLogin}
+            className="font-semibold underline underline-offset-4"
+          >
+            Sign in as admin
+          </button>{' '}
+          with username <span className="font-mono">vguadmin</span> to unlock this tool.
+        </div>
+      )}
+
       <div className="space-y-4">
-        {ASSESSMENT_QUESTIONS.map((q) => (
+        {questions.map((q) => (
           <div
             key={q.id}
             className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-100"
@@ -781,6 +883,203 @@ function GrowthPlan() {
   );
 }
 
+function LoginPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'success'>('idle');
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setStatus('success');
+  };
+
+  return (
+    <div className="mx-auto w-full max-w-md space-y-6">
+      <div className="text-center">
+        <p className="text-xs uppercase tracking-[0.2em] text-indigo-500">
+          Secure access
+        </p>
+        <h1 className="mt-2 text-2xl font-semibold text-gray-50">Member login</h1>
+        <p className="mt-1 text-sm text-gray-400">
+          Sign in to continue your emotional intelligence journey.
+        </p>
+      </div>
+
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-4 rounded-3xl border border-slate-800/90 bg-slate-950/70 p-6 shadow-xl shadow-black/40"
+      >
+        <label className="space-y-2 text-sm text-slate-200" htmlFor="login-email">
+          Email address
+          <input
+            id="login-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            className="w-full rounded-2xl border border-slate-800 bg-slate-900/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/30"
+            placeholder="you@example.com"
+          />
+        </label>
+
+        <label className="space-y-2 text-sm text-slate-200" htmlFor="login-password">
+          Password
+          <input
+            id="login-password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            className="w-full rounded-2xl border border-slate-800 bg-slate-900/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/30"
+            placeholder="••••••••"
+          />
+        </label>
+
+        <div className="flex items-center justify-between text-xs text-slate-400">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="h-4 w-4 rounded border border-slate-700 bg-slate-900 text-indigo-500 focus:ring-indigo-500"
+            />
+            Remember me
+          </label>
+          <button
+            type="button"
+            className="font-medium text-indigo-400 hover:text-indigo-200"
+          >
+            Forgot password?
+          </button>
+        </div>
+
+        <button
+          type="submit"
+          className="w-full rounded-2xl bg-indigo-500/80 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-900/60 transition hover:bg-indigo-400/90"
+        >
+          Log in
+        </button>
+
+        <p className="text-center text-[11px] text-slate-500">
+          Admins can use the same credentials on the admin login page.
+        </p>
+      </form>
+
+      {status === 'success' && (
+        <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+          Demo only: credentials are not verified. Replace with your auth logic.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminLogin({
+  isAdmin,
+  onLogin,
+  onLogout,
+}: {
+  isAdmin: boolean;
+  onLogin: () => void;
+  onLogout: () => void;
+}) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [status, setStatus] = useState<'idle' | 'error' | 'success'>('idle');
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (
+      username.trim() === ADMIN_CREDENTIALS.username &&
+      password === ADMIN_CREDENTIALS.password
+    ) {
+      onLogin();
+      setStatus('success');
+    } else {
+      setStatus('error');
+    }
+  };
+
+  return (
+    <div className="mx-auto w-full max-w-md space-y-6">
+      <div className="text-center">
+        <p className="text-xs uppercase tracking-[0.2em] text-indigo-500">Admin</p>
+        <h1 className="mt-2 text-2xl font-semibold text-gray-50">Secure login</h1>
+        <p className="mt-1 text-sm text-gray-400">
+          Sign in to manage assessment prompts and advanced controls.
+        </p>
+      </div>
+
+      {isAdmin && (
+        <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+          You are currently logged in as{' '}
+          <span className="font-semibold text-white">{ADMIN_CREDENTIALS.username}</span>.
+          You can add questions from the assessment page.
+        </div>
+      )}
+
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-4 rounded-3xl border border-slate-800/90 bg-slate-950/70 p-6 shadow-xl shadow-black/40"
+      >
+        <label className="space-y-2 text-sm text-slate-200" htmlFor="admin-username">
+          Username
+          <input
+            id="admin-username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            className="w-full rounded-2xl border border-slate-800 bg-slate-900/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/30"
+            placeholder="vguadmin"
+          />
+        </label>
+
+        <label className="space-y-2 text-sm text-slate-200" htmlFor="admin-password">
+          Password
+          <input
+            id="admin-password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full rounded-2xl border border-slate-800 bg-slate-900/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/30"
+            placeholder="vgu@123"
+          />
+        </label>
+
+        <button
+          type="submit"
+          className="w-full rounded-2xl bg-indigo-500/80 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-900/60 transition hover:bg-indigo-400/90"
+        >
+          {isAdmin ? 'Re-authenticate' : 'Login as admin'}
+        </button>
+
+        {status === 'error' && (
+          <p className="text-center text-xs font-medium text-rose-300">
+            Invalid credentials. Try username <span className="font-mono">vguadmin</span> with
+            password <span className="font-mono">vgu@123</span>.
+          </p>
+        )}
+
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={onLogout}
+            className="w-full rounded-2xl border border-slate-700/80 px-4 py-2 text-xs font-semibold text-slate-200 transition hover:border-rose-400 hover:text-white"
+          >
+            Logout
+          </button>
+        )}
+      </form>
+
+      {status === 'success' && (
+        <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+          Access granted. Navigate to the assessment to add new questions.
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PlaceholderPage({ title, description }: { title: string; description: string }) {
   return (
     <div className="space-y-3">
@@ -796,13 +1095,14 @@ function PlaceholderPage({ title, description }: { title: string; description: s
 
 function App() {
   const [activePage, setActivePage] = useState<PageId>('dashboard');
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const renderPage = () => {
     switch (activePage) {
       case 'dashboard':
         return <Dashboard />;
       case 'assessment':
-        return <Assessment />;
+        return <Assessment isAdmin={isAdmin} goToAdminLogin={() => setActivePage('admin')} />;
       case 'coach':
         return <ChatCoach />;
       case 'mood':
@@ -841,9 +1141,10 @@ function App() {
         );
       case 'admin':
         return (
-          <PlaceholderPage
-            title="Admin"
-            description="Admin overview for managing users, content, and reports."
+          <AdminLogin
+            isAdmin={isAdmin}
+            onLogin={() => setIsAdmin(true)}
+            onLogout={() => setIsAdmin(false)}
           />
         );
       case 'privacy':
@@ -867,6 +1168,8 @@ function App() {
             description="Upsell page for deeper coaching, more modules, and advanced analytics."
           />
         );
+      case 'login':
+        return <LoginPage />;
       default:
         return null;
     }
@@ -1005,12 +1308,40 @@ function App() {
 
             <div className="flex-1" />
 
-            <div className="flex items-center gap-3 rounded-full border border-slate-700/80 bg-slate-900/70 px-2 py-1.5 text-xs text-slate-200 shadow-sm">
-              <div className="flex flex-col leading-tight">
-                <span className="text-[11px] text-slate-400">Today&apos;s focus</span>
-                <span className="font-medium text-slate-100">
-                  Name, feel, and then choose.
-                </span>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-3 rounded-full border border-slate-700/80 bg-slate-900/70 px-2 py-1.5 text-xs text-slate-200 shadow-sm">
+                <div className="flex flex-col leading-tight">
+                  <span className="text-[11px] text-slate-400">Today&apos;s focus</span>
+                  <span className="font-medium text-slate-100">
+                    Name, feel, and then choose.
+                  </span>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActivePage('login')}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition
+                    ${
+                      activePage === 'login'
+                        ? 'border-indigo-400 bg-indigo-500/20 text-indigo-100'
+                        : 'border-slate-700/80 bg-slate-900/70 text-slate-200 hover:border-indigo-400 hover:text-white'
+                    }`}
+                >
+                  Login
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActivePage('admin')}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition
+                    ${
+                      activePage === 'admin'
+                        ? 'border-indigo-400 bg-indigo-500/20 text-indigo-100'
+                        : 'border-slate-700/80 bg-slate-900/70 text-slate-200 hover:border-indigo-400 hover:text-white'
+                    }`}
+                >
+                  Admin Login
+                </button>
               </div>
             </div>
           </header>
